@@ -1,6 +1,7 @@
 import datasets
 import json
 
+
 def make_dataset_use_entire_document_as_context(row):
     """
     Convert the paragraphs into documents by:
@@ -11,22 +12,24 @@ def make_dataset_use_entire_document_as_context(row):
     :param row: a row from the dataset representing a single document
     :return: the updated dataset.
     """
-    
+
     # join all of the contexts together to form a single document, separating each with a newline
-    entire_document = '\n'.join([paragraph['context'] for paragraph in row['paragraphs']])
+    entire_document = "\n".join(
+        [paragraph["context"] for paragraph in row["paragraphs"]]
+    )
 
     # the offset relative to the start of the document
-    context_offset = 0 
+    context_offset = 0
 
-    for paragraph in row['paragraphs']:
-        original_context = paragraph['context']
-        paragraph['context'] = entire_document
-        for qa in paragraph['qas']:
-            for answer in qa['answers']:
-                answer['answer_start'] += context_offset
+    for paragraph in row["paragraphs"]:
+        original_context = paragraph["context"]
+        paragraph["context"] = entire_document
+        for qa in paragraph["qas"]:
+            for answer in qa["answers"]:
+                answer["answer_start"] += context_offset
 
         # update the context offset for the next paragraph
-        context_offset += len(original_context) + 1 # +1 for the newline character
+        context_offset += len(original_context) + 1  # +1 for the newline character
 
     return row
 
@@ -37,13 +40,17 @@ def check_answer_offsets(row):
     :param row: a row from the dataset representing a single document
     :return: Nothing
     """
-    for paragraph in row['paragraphs']:
-        for qa in paragraph['qas']:
-            for answer in qa['answers']:
-                start = answer['answer_start']
-                selected_from_context = paragraph['context'][start:start + len(answer['text'])]
-                actual_text = answer['text']
-                assert selected_from_context == actual_text, f"Expected {actual_text} but got {selected_from_context}"
+    for paragraph in row["paragraphs"]:
+        for qa in paragraph["qas"]:
+            for answer in qa["answers"]:
+                start = answer["answer_start"]
+                selected_from_context = paragraph["context"][
+                    start : start + len(answer["text"])
+                ]
+                actual_text = answer["text"]
+                assert (
+                    selected_from_context == actual_text
+                ), f"Expected {actual_text} but got {selected_from_context}"
 
 
 _URL = "https://raw.githubusercontent.com/wasiahmad/PolicyQA/main/data/"
@@ -68,7 +75,11 @@ class LongPolicyQAConfig(datasets.BuilderConfig):
 class LongPolicyQA(datasets.GeneratorBasedBuilder):
 
     BUILDER_CONFIGS = [
-        LongPolicyQAConfig(name="long_policy_qa", version=datasets.Version("1.0.0"), description="PolicyQA dataset, with the entire document as context."),
+        LongPolicyQAConfig(
+            name="long_policy_qa",
+            version=datasets.Version("1.0.0"),
+            description="PolicyQA dataset, with the entire document as context.",
+        ),
     ]
 
     def _info(self):
@@ -97,7 +108,9 @@ class LongPolicyQA(datasets.GeneratorBasedBuilder):
             supervised_keys=None,
             task_templates=[
                 datasets.tasks.QuestionAnsweringExtractive(
-                    question_column="question", context_column="context", answers_column="answers"
+                    question_column="question",
+                    context_column="context",
+                    answers_column="answers",
                 )
             ],
         )
@@ -111,25 +124,38 @@ class LongPolicyQA(datasets.GeneratorBasedBuilder):
         downloaded_files = dl_manager.download_and_extract(urls_to_download)
 
         # update the downloaded files to have the entire context
-        for split, filepath in downloaded_files.items():
-            print(f"Updating {filepath} ({split}) to have the entire context")
-            with open(filepath) as f:
-                dataset = json.load(f)
-                print(f"Loaded {filepath} with {len(dataset['data'])} documents")
-                for example in dataset['data']:
-                    example_with_entire_context = make_dataset_use_entire_document_as_context(example)
-                    check_answer_offsets(example_with_entire_context)
-                    example['paragraphs'] = example_with_entire_context['paragraphs']
-                    print(f"Updated {filepath} with {len(example['paragraphs'])} paragraphs")
+        # for split, filepath in downloaded_files.items():
+        #     print(f"Updating {filepath} ({split}) to have the entire context")
+        #     with open(filepath, "r+") as f:
+        #         dataset = json.load(f)
+        #         print(f"Loaded {filepath} with {len(dataset['data'])} documents")
+        #         for example in dataset["data"]:
+        #             example_with_entire_context = (
+        #                 make_dataset_use_entire_document_as_context(example)
+        #             )
+        #             check_answer_offsets(example_with_entire_context)
+        #             example["paragraphs"] = example_with_entire_context["paragraphs"]
+        #             print(
+        #                 f"Updated {filepath} with {len(example['paragraphs'])} paragraphs"
+        #             )
 
-                print(f'writing to {filepath} ({split})')
-                # json.dump(dataset, f)
-                print(f'wrote to {filepath} ({split})')
+        #         print(f"writing to {filepath} ({split})")
+        #         json.dump(dataset, f)
+        #         print(f"wrote to {filepath} ({split})")
 
         return [
-            datasets.SplitGenerator(name=datasets.Split.TRAIN, gen_kwargs={"filepath": downloaded_files["train"]}),
-            datasets.SplitGenerator(name=datasets.Split.VALIDATION, gen_kwargs={"filepath": downloaded_files["dev"]}),
-            datasets.SplitGenerator(name=datasets.Split.TEST, gen_kwargs={"filepath": downloaded_files["test"]}),
+            datasets.SplitGenerator(
+                name=datasets.Split.TRAIN,
+                gen_kwargs={"filepath": downloaded_files["train"]},
+            ),
+            datasets.SplitGenerator(
+                name=datasets.Split.VALIDATION,
+                gen_kwargs={"filepath": downloaded_files["dev"]},
+            ),
+            datasets.SplitGenerator(
+                name=datasets.Split.TEST,
+                gen_kwargs={"filepath": downloaded_files["test"]},
+            ),
         ]
 
     def _generate_examples(self, filepath):
@@ -139,14 +165,20 @@ class LongPolicyQA(datasets.GeneratorBasedBuilder):
             squad = json.load(f)
             for example in squad["data"]:
                 title = example.get("title", "")
-                example_with_entire_context = make_dataset_use_entire_document_as_context(example)
+                example_with_entire_context = (
+                    make_dataset_use_entire_document_as_context(example)
+                )
                 for paragraph in example_with_entire_context["paragraphs"]:
-                    context = paragraph["context"]  # do not strip leading blank spaces GH-2585
+                    context = paragraph[
+                        "context"
+                    ]  # do not strip leading blank spaces GH-2585
                     for qa in paragraph["qas"]:
                         question = qa["question"]
                         id_ = qa["id"]
 
-                        answer_starts = [answer["answer_start"] for answer in qa["answers"]]
+                        answer_starts = [
+                            answer["answer_start"] for answer in qa["answers"]
+                        ]
                         answers = [answer["text"] for answer in qa["answers"]]
 
                         # Features currently used are "context", "question", and "answers".
