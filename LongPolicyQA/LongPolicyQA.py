@@ -55,10 +55,10 @@ _URLS = {
 
 
 class LongPolicyQAConfig(datasets.BuilderConfig):
-    """BuilderConfig for SQUAD."""
+    """BuilderConfig for LongPolicyQA."""
 
     def __init__(self, **kwargs):
-        """BuilderConfig for SQUADV2.
+        """BuilderConfig for LongPolicyQA..
         Args:
           **kwargs: keyword arguments forwarded to super.
         """
@@ -68,7 +68,7 @@ class LongPolicyQAConfig(datasets.BuilderConfig):
 class LongPolicyQA(datasets.GeneratorBasedBuilder):
 
     BUILDER_CONFIGS = [
-        LongPolicyQAConfig(name="squad_v2", version=datasets.Version("2.0.0"), description="SQuAD plaint text version 2"),
+        LongPolicyQAConfig(name="long_policy_qa", version=datasets.Version("1.0.0"), description="PolicyQA dataset, with the entire document as context."),
     ]
 
     def _info(self):
@@ -95,8 +95,6 @@ class LongPolicyQA(datasets.GeneratorBasedBuilder):
             # specify them here. They'll be used if as_supervised=True in
             # builder.as_dataset.
             supervised_keys=None,
-            # Homepage of the dataset for documentation
-            homepage="https://rajpurkar.github.io/SQuAD-explorer/",
             task_templates=[
                 datasets.tasks.QuestionAnsweringExtractive(
                     question_column="question", context_column="context", answers_column="answers"
@@ -111,6 +109,22 @@ class LongPolicyQA(datasets.GeneratorBasedBuilder):
         # download and extract URLs
         urls_to_download = _URLS
         downloaded_files = dl_manager.download_and_extract(urls_to_download)
+
+        # update the downloaded files to have the entire context
+        for split, filepath in downloaded_files.items():
+            print(f"Updating {filepath} ({split}) to have the entire context")
+            with open(filepath) as f:
+                dataset = json.load(f)
+                print(f"Loaded {filepath} with {len(dataset['data'])} documents")
+                for example in dataset['data']:
+                    example_with_entire_context = make_dataset_use_entire_document_as_context(example)
+                    check_answer_offsets(example_with_entire_context)
+                    example['paragraphs'] = example_with_entire_context['paragraphs']
+                    print(f"Updated {filepath} with {len(example['paragraphs'])} paragraphs")
+
+                print(f'writing to {filepath} ({split})')
+                # json.dump(dataset, f)
+                print(f'wrote to {filepath} ({split})')
 
         return [
             datasets.SplitGenerator(name=datasets.Split.TRAIN, gen_kwargs={"filepath": downloaded_files["train"]}),
